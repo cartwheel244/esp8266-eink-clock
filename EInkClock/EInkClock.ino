@@ -6,8 +6,10 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WiFi.h>
 #include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
+#include <Fonts/FreeSansBold9pt7b.h>
 #include <WiFiClientSecure.h>
 #include <time.h>
 
@@ -361,27 +363,45 @@ void updateDisplay(struct tm *timeinfo) {
   int leftWidth = 196;  // ~2/3 of screen
   int rightWidth = 100; // ~1/3 of screen
 
+  // --- Top Location Labels (Aligned with Buttons) ---
+  int16_t topY = 16; // Baseline for 9pt font
+
+  // Woburn (Left Button / Pins 12&13)
+  if (activeCity == "Woburn,MA,US") {
+    display.setFont(&FreeSansBold9pt7b);
+  } else {
+    display.setFont(&FreeSans9pt7b);
+  }
+  display.setTextSize(1);
+  display.setCursor(5, topY);
+  display.print("Woburn");
+
+  // Cypress (Right Button / Pin 14)
+  if (activeCity == "Cypress,TX,US") {
+    display.setFont(&FreeSansBold9pt7b);
+  } else {
+    display.setFont(&FreeSans9pt7b);
+  }
+  int16_t bx1, by1;
+  uint16_t bw, bh;
+  display.getTextBounds("Cypress", 0, topY, &bx1, &by1, &bw, &bh);
+  // Put cypress at the far right edge
+  display.setCursor(display.width() - bw - 5, topY);
+  display.print("Cypress");
+
   // --- Left 2/3 (Time & Date) ---
   // Draw Time with 2x scaled 18pt font (~36pt, approx +25-50% larger than 24pt)
+  // Shifted down slightly to make room for top labels
   display.setFont(&FreeSansBold18pt7b);
   display.setTextSize(2);
-  printCenteredInRegion(timeStr, 65, 0, leftWidth);
+  printCenteredInRegion(timeStr, 75, 0, leftWidth);
 
   // Reset text size to 1x for remaining operations
   display.setTextSize(1);
 
   // Draw Date with 12pt font below time
   display.setFont(&FreeSans12pt7b);
-  printCenteredInRegion(dateStr, 110, 0, leftWidth);
-
-  // Draw active location name at the bottom of the left block in 9pt
-  // (Switching to default system font by passing NULL for tiny text)
-  display.setFont();
-  display.setTextSize(1);
-  int16_t locW = displayCityName.length() *
-                 6; // 5x7 default font roughly 6px wide per char
-  display.setCursor((leftWidth - locW) / 2, 118);
-  display.print(displayCityName);
+  printCenteredInRegion(dateStr, 115, 0, leftWidth);
 
   // --- Right 1/3 (Weather & Temp) ---
   if (currentWeather.valid) {
