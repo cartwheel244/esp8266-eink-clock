@@ -199,16 +199,26 @@ void loop() {
 
   unsigned long msToWait = (unsigned long)secondsToWait * 1000;
   unsigned long startSleep = millis();
+  unsigned long lastHeartbeat = 0;
 
   bool forceUpdate = false;
   Serial.printf("Sleeping %d seconds until next minute rollover while polling "
-                "buttons...\n",
+                "buttons AT 100ms intervals...\n",
                 secondsToWait);
 
   while (millis() - startSleep < msToWait) {
+    // Diagnostic Heartbeat every 1 second
+    if (millis() - lastHeartbeat >= 1000) {
+      lastHeartbeat = millis();
+      int valA = digitalRead(BUTTON_A);
+      int valC = digitalRead(BUTTON_C);
+      Serial.printf("[DEBUG] P0(A):%d P2(C):%d | Left:%d ms\n", valA, valC,
+                    (int)(msToWait - (millis() - startSleep)));
+    }
+
     // Check Left Button (Woburn)
     if (digitalRead(BUTTON_A) == LOW) {
-      Serial.println("BUTTON A (Left) Detected!");
+      Serial.println(">>> RAW LOW DETECTED ON PIN 0 (A) <<<");
       delay(50); // debounce
       if (digitalRead(BUTTON_A) == LOW) {
         if (activeCity != "Woburn,MA,US") {
@@ -219,13 +229,14 @@ void loop() {
           break;
         } else {
           Serial.println("Already showing Woburn.");
+          delay(500); // Wait a bit
         }
       }
     }
 
     // Check Right Button (Cypress)
     if (digitalRead(BUTTON_C) == LOW) {
-      Serial.println("BUTTON C (Right) Detected!");
+      Serial.println(">>> RAW LOW DETECTED ON PIN 2 (C) <<<");
       delay(50); // debounce
       if (digitalRead(BUTTON_C) == LOW) {
         if (activeCity != "Cypress,TX,US") {
@@ -236,6 +247,7 @@ void loop() {
           break;
         } else {
           Serial.println("Already showing Cypress.");
+          delay(500); // Wait a bit
         }
       }
     }
