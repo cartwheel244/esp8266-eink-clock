@@ -74,10 +74,12 @@ WeatherData currentWeather = {0.0, "", false};
 // Function prototypes
 void fetchWeather();
 void updateDisplay(struct tm *timeinfo);
+// Reclaim Pins: Set the shared SPI pins (12, 13, 14) back to INPUT_PULLUP to
+// read the buttons!
 void reclaimButtons() {
-  pinMode(12, INPUT_PULLUP);
-  pinMode(13, INPUT_PULLUP);
-  pinMode(14, INPUT_PULLUP);
+  pinMode(12, INPUT_PULLUP); // Button B (Middle)
+  pinMode(13, INPUT_PULLUP); // Button C (Left)
+  pinMode(14, INPUT_PULLUP); // Button A (Right)
 }
 
 // Prepare Display: Switch the shared pins back to OUTPUT so the screen can
@@ -85,7 +87,10 @@ void reclaimButtons() {
 void prepareDisplay() {
   pinMode(EPD_CS, OUTPUT);
   pinMode(SRAM_CS, OUTPUT);
-  pinMode(EPD_DC, OUTPUT); // CRITICAL: Stop Pin 15 from being an input
+  pinMode(EPD_DC, OUTPUT);
+  // Restore SPI pins for communication
+  pinMode(13, OUTPUT); // MOSI
+  pinMode(14, OUTPUT); // SCK
 }
 
 void setup() {
@@ -201,12 +206,9 @@ void loop() {
   bool forceUpdate = false;
 
   // SCAN BUTTON PINS (12, 13, 14)
-  int scanPins[] = {12, 13, 14};
-  for (int p : scanPins) {
-    pinMode(p, INPUT_PULLUP);
-  }
+  reclaimButtons();
 
-  Serial.printf("Sleeping %d seconds. POLLING BUTTONS (12,13,14)...\n",
+  Serial.printf("Sleeping %d seconds. POLLING BUTTONS (L:13, M:12, R:14)...\n",
                 secondsToWait);
 
   while (millis() - startSleep < msToWait) {
