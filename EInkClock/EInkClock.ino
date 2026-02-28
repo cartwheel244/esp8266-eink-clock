@@ -174,7 +174,7 @@ void loop() {
     // We only update if time is actually valid
     if (timeinfo->tm_year > 100) {
       // Pull weather every 15 minutes or if we don't have valid weather yet
-      if (!currentWeather.valid ||
+      if (!woburnWeather.valid || !cypressWeather.valid ||
           abs(timeinfo->tm_min - lastWeatherMinute) >= 15 ||
           lastWeatherMinute == -1) {
         lastWeatherMinute = timeinfo->tm_min;
