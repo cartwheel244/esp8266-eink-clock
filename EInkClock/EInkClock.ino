@@ -67,10 +67,12 @@ struct WeatherData {
   String iconCode;
   bool valid;
 };
-WeatherData currentWeather = {0.0, "", false};
+WeatherData woburnWeather = {0.0, "", false};
+WeatherData cypressWeather = {0.0, "", false};
 
 // Function prototypes
-void fetchWeather();
+void fetchAllWeather();
+void fetchWeatherForCity(String cityQuery, WeatherData &weatherStore);
 void updateDisplay(struct tm *timeinfo);
 // Reclaim Pins: Set the shared SPI pins (12, 13, 14) back to INPUT_PULLUP to
 // read the buttons!
@@ -176,7 +178,7 @@ void loop() {
           abs(timeinfo->tm_min - lastWeatherMinute) >= 15 ||
           lastWeatherMinute == -1) {
         lastWeatherMinute = timeinfo->tm_min;
-        fetchWeather();
+        fetchAllWeather();
       }
 
       Serial.println(
@@ -257,26 +259,31 @@ void loop() {
   }
 
   if (forceUpdate) {
-    Serial.println("Immediate Refresh Triggered by Button.");
-    fetchWeather();
+    Serial.println("Immediate Refresh Triggered by Button (No API wait).");
     now = time(nullptr);
     timeinfo = localtime(&now);
     updateDisplay(timeinfo);
   }
 }
 
-void fetchWeather() {
+void fetchAllWeather() {
+  Serial.println("--- Fetching Background Weather for All Locations ---");
+  fetchWeatherForCity("Woburn,MA,US", woburnWeather);
+  fetchWeatherForCity("Cypress,TX,US", cypressWeather);
+}
+
+void fetchWeatherForCity(String cityQuery, WeatherData &weatherStore) {
   if (WiFi.status() != WL_CONNECTED)
     return;
 
-  Serial.println("Fetching current weather from OpenWeatherMap...");
+  Serial.printf("Fetching weather for %s...\n", cityQuery.c_str());
   WiFiClientSecure client;
   client.setInsecure(); // OWM uses HTTPS. Skip validating cert for simple
                         // weather pull
 
   HTTPClient https;
   String url = String("https://api.openweathermap.org/data/2.5/weather?q=") +
-               activeCity + "&appid=" + OWM_API_KEY + "&units=imperial";
+               cityQuery + "&appid=" + OWM_API_KEY + "&units=imperial";
 
   if (https.begin(client, url)) {
     int httpCode = https.GET();
@@ -287,22 +294,21 @@ void fetchWeather() {
       DeserializationError error = deserializeJson(doc, payload);
 
       if (!error) {
-        currentWeather.temp = doc["main"]["temp"];
+        weatherStore.temp = doc["main"]["temp"];
         const char *icon = doc["weather"][0]["icon"];
-        currentWeather.iconCode = String(icon);
-        currentWeather.valid = true;
-        Serial.printf("Weather updated: %.1fF, Icon: %s\n", currentWeather.temp,
-                      icon);
+        weatherStore.iconCode = String(icon);
+        weatherStore.valid = true;
+        Serial.printf("  -> Temp: %.1fF, Icon: %s\n", weatherStore.temp, icon);
       } else {
-        Serial.println("JSON Parsing failed.");
+        Serial.println("  -> JSON Parsing failed.");
       }
     } else {
-      Serial.printf("Weather API call failed, error: %s\n",
+      Serial.printf("  -> API call failed, error: %s\n",
                     https.errorToString(httpCode).c_str());
     }
     https.end();
   } else {
-    Serial.println("Unable to connect to HTTPS endpoint.");
+    Serial.println("  -> Unable to connect to HTTPS endpoint.");
   }
 }
 
@@ -364,29 +370,38 @@ void updateDisplay(struct tm *timeinfo) {
   int rightWidth = 100; // ~1/3 of screen
 
   // --- Top Location Labels (Aligned with Buttons) ---
-  int16_t topY = 16; // Baseline for 9pt font
+  int16_t topY = 16; // Default baseline for 9pt font
 
   // Woburn (Left Button / Pins 12&13)
   if (activeCity == "Woburn,MA,US") {
     display.setFont(&FreeSansBold9pt7b);
+    display.setTextSize(1);
+    display.setCursor(5, topY);
   } else {
-    display.setFont(&FreeSans9pt7b);
+    display.setFont(); // Default tiny system font
+    display.setTextSize(1);
+    display.setCursor(5, 5); // Shift up for system font baseline
   }
-  display.setTextSize(1);
-  display.setCursor(5, topY);
   display.print("Woburn");
 
   // Cypress (Right Button / Pin 14)
   if (activeCity == "Cypress,TX,US") {
     display.setFont(&FreeSansBold9pt7b);
+    display.setTextSize(1);
+
+    int16_t bx1, by1;
+    uint16_t bw, bh;
+    display.getTextBounds("Cypress", 0, topY, &bx1, &by1, &bw, &bh);
+    display.setCursor(display.width() - bw - 5, topY);
   } else {
-    display.setFont(&FreeSans9pt7b);
+    display.setFont();
+    display.setTextSize(1);
+
+    int16_t bx1, by1;
+    uint16_t bw, bh;
+    display.getTextBounds("Cypress", 0, 5, &bx1, &by1, &bw, &bh);
+    display.setCursor(display.width() - bw - 5, 5);
   }
-  int16_t bx1, by1;
-  uint16_t bw, bh;
-  display.getTextBounds("Cypress", 0, topY, &bx1, &by1, &bw, &bh);
-  // Put cypress at the far right edge
-  display.setCursor(display.width() - bw - 5, topY);
   display.print("Cypress");
 
   // --- Left 2/3 (Time & Date) ---
@@ -404,22 +419,30 @@ void updateDisplay(struct tm *timeinfo) {
   printCenteredInRegion(dateStr, 115, 0, leftWidth);
 
   // --- Right 1/3 (Weather & Temp) ---
-  if (currentWeather.valid) {
+  // Select the correct weather data block
+  WeatherData *activeWeather;
+  if (activeCity == "Woburn,MA,US") {
+    activeWeather = &woburnWeather;
+  } else {
+    activeWeather = &cypressWeather;
+  }
+
+  if (activeWeather->valid) {
     // Determine the icon to draw
     const unsigned char *iconPtr = icon_cloudy; // Default
-    if (currentWeather.iconCode.indexOf("01") >= 0) {
+    if (activeWeather->iconCode.indexOf("01") >= 0) {
       iconPtr = icon_sunny;
-    } else if (currentWeather.iconCode.indexOf("02") >= 0 ||
-               currentWeather.iconCode.indexOf("03") >= 0 ||
-               currentWeather.iconCode.indexOf("04") >= 0 ||
-               currentWeather.iconCode.indexOf("50") >= 0) {
+    } else if (activeWeather->iconCode.indexOf("02") >= 0 ||
+               activeWeather->iconCode.indexOf("03") >= 0 ||
+               activeWeather->iconCode.indexOf("04") >= 0 ||
+               activeWeather->iconCode.indexOf("50") >= 0) {
       iconPtr = icon_cloudy;
-    } else if (currentWeather.iconCode.indexOf("09") >= 0 ||
-               currentWeather.iconCode.indexOf("10") >= 0) {
+    } else if (activeWeather->iconCode.indexOf("09") >= 0 ||
+               activeWeather->iconCode.indexOf("10") >= 0) {
       iconPtr = icon_rain;
-    } else if (currentWeather.iconCode.indexOf("11") >= 0) {
+    } else if (activeWeather->iconCode.indexOf("11") >= 0) {
       iconPtr = icon_thunder;
-    } else if (currentWeather.iconCode.indexOf("13") >= 0) {
+    } else if (activeWeather->iconCode.indexOf("13") >= 0) {
       iconPtr = icon_snow;
     }
 
@@ -431,7 +454,7 @@ void updateDisplay(struct tm *timeinfo) {
 
     // Format temperature
     char tempValStr[10];
-    sprintf(tempValStr, "%.0f", currentWeather.temp);
+    sprintf(tempValStr, "%.0f", activeWeather->temp);
 
     // Draw Temp with massive 24pt font
     display.setFont(&FreeSansBold24pt7b);
