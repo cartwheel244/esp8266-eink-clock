@@ -225,34 +225,28 @@ void loop() {
                     (int)(msToWait - (millis() - startSleep)));
     }
 
-    // Check for ANY low pin (excluding 15/DC which might be low normally?)
+    // Check for ANY low pin
     for (int p : scanPins) {
       if (digitalRead(p) == LOW) {
-        // Handle Pin 12 (Middle)
-        if (p == 12) {
-          delay(50);
-          if (digitalRead(12) == LOW) {
+        delay(50); // debounce
+        if (digitalRead(p) == LOW) {
+          Serial.printf(">>> LOW DETECTED ON PIN %d <<<\n", p);
+
+          if (p == 13 || p == 12) {
+            // Pin 13 is Left, Pin 12 is Middle -> Both go to Woburn
             if (activeCity != "Woburn,MA,US") {
-              Serial.println(
-                  ">>> Middle Button (P12) -> Switching to Woburn <<<");
+              Serial.printf("Switching to Woburn via Pin %d...\n", p);
               activeCity = "Woburn,MA,US";
               displayCityName = "Woburn";
               forceUpdate = true;
             }
-          }
-        }
-        // Handle potential Right Button (We'll see which pin it is in the log)
-        else if (p != 15 && p != 14 && p != 0 && p != 16) {
-          delay(50);
-          if (digitalRead(p) == LOW) {
-            Serial.printf(">>> LOW DETECTED ON PIN %d <<<\n", p);
-            if (p == 13 || p == 2 || p == 4 || p == 5) {
-              if (activeCity != "Cypress,TX,US") {
-                Serial.printf("Switching to Cypress via Pin %d...\n", p);
-                activeCity = "Cypress,TX,US";
-                displayCityName = "Cypress";
-                forceUpdate = true;
-              }
+          } else if (p != 15 && p != 0 && p != 16) {
+            // Any other pin (2, 4, 5, 14) -> Try Cypress
+            if (activeCity != "Cypress,TX,US") {
+              Serial.printf("Switching to Cypress via Pin %d...\n", p);
+              activeCity = "Cypress,TX,US";
+              displayCityName = "Cypress";
+              forceUpdate = true;
             }
           }
         }
