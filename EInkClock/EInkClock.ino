@@ -34,11 +34,9 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 #define EPD_BUSY                                                               \
   -1 // Can set to -1 on FeatherWings since we don't always use it
 
-// The 2.13" Monochrome FeatherWing has several hardware revisions.
-// If the screen is shifted down/right with a missing 20% block, it uses the
-// unshifted GDEY0213B74 layout:
-ThinkInk_213_Mono_GDEY0213B74 display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
-                                      EPD_BUSY);
+// The 2.9" Grayscale FeatherWing (Product 4777) uses the IL0373 chipset
+ThinkInk_290_Grayscale4_T5 display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
+                                   EPD_BUSY);
 
 // Globals
 int lastMinute = -1;
