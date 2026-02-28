@@ -74,14 +74,10 @@ WeatherData currentWeather = {0.0, "", false};
 // Function prototypes
 void fetchWeather();
 void updateDisplay(struct tm *timeinfo);
-void reclaimButtons();
-void prepareDisplay();
-
-// Reclaim Pins: The Adafruit EPD library sets Chip Select pins (0, 16) to
-// OUTPUT. We must manually set them back to INPUT_PULLUP to read the buttons!
 void reclaimButtons() {
-  pinMode(BUTTON_A, INPUT_PULLUP);
-  pinMode(BUTTON_C, INPUT_PULLUP);
+  pinMode(12, INPUT_PULLUP);
+  pinMode(13, INPUT_PULLUP);
+  pinMode(14, INPUT_PULLUP);
 }
 
 // Prepare Display: Switch the shared pins back to OUTPUT so the screen can
@@ -89,6 +85,7 @@ void reclaimButtons() {
 void prepareDisplay() {
   pinMode(EPD_CS, OUTPUT);
   pinMode(SRAM_CS, OUTPUT);
+  pinMode(EPD_DC, OUTPUT); // CRITICAL: Stop Pin 15 from being an input
 }
 
 void setup() {
@@ -203,29 +200,25 @@ void loop() {
 
   bool forceUpdate = false;
 
-  // SCAN ALL POTENTIAL PINS
-  int scanPins[] = {0, 2, 4, 5, 12, 13, 14, 15, 16};
+  // SCAN BUTTON PINS (12, 13, 14)
+  int scanPins[] = {12, 13, 14};
   for (int p : scanPins) {
     pinMode(p, INPUT_PULLUP);
   }
 
-  Serial.printf(
-      "Sleeping %d seconds. FULL PIN SCAN MODE (0,2,4,5,12,13,14,15,16)...\n",
-      secondsToWait);
+  Serial.printf("Sleeping %d seconds. POLLING BUTTONS (12,13,14)...\n",
+                secondsToWait);
 
   while (millis() - startSleep < msToWait) {
     // Diagnostic Heartbeat every 1 second
     if (millis() - lastHeartbeat >= 1000) {
       lastHeartbeat = millis();
-      Serial.print("[SCAN] ");
-      for (int p : scanPins) {
-        Serial.printf("P%d:%d ", p, digitalRead(p));
-      }
-      Serial.printf("| Left:%d ms\n",
+      Serial.printf("[SCAN] P12:%d P13:%d P14:%d | Left:%d ms\n",
+                    digitalRead(12), digitalRead(13), digitalRead(14),
                     (int)(msToWait - (millis() - startSleep)));
     }
 
-    // Check for ANY low pin
+    // Check for button presses
     for (int p : scanPins) {
       if (digitalRead(p) == LOW) {
         delay(50); // debounce
@@ -240,10 +233,10 @@ void loop() {
               displayCityName = "Woburn";
               forceUpdate = true;
             }
-          } else if (p != 15 && p != 0 && p != 16) {
-            // Any other pin (2, 4, 5, 14) -> Try Cypress
+          } else if (p == 14) {
+            // Pin 14 is likely the Right button
             if (activeCity != "Cypress,TX,US") {
-              Serial.printf("Switching to Cypress via Pin %d...\n", p);
+              Serial.println("Switching to Cypress via Pin 14...");
               activeCity = "Cypress,TX,US";
               displayCityName = "Cypress";
               forceUpdate = true;
