@@ -207,6 +207,7 @@ void loop() {
 
   // SCAN BUTTON PINS (12, 13, 14)
   reclaimButtons();
+  int scanPins[] = {12, 13, 14};
 
   Serial.printf("Sleeping %d seconds. POLLING BUTTONS (L:13, M:12, R:14)...\n",
                 secondsToWait);
