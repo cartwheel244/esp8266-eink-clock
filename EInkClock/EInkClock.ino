@@ -75,12 +75,20 @@ WeatherData currentWeather = {0.0, "", false};
 void fetchWeather();
 void updateDisplay(struct tm *timeinfo);
 void reclaimButtons();
+void prepareDisplay();
 
 // Reclaim Pins: The Adafruit EPD library sets Chip Select pins (0, 16) to
 // OUTPUT. We must manually set them back to INPUT_PULLUP to read the buttons!
 void reclaimButtons() {
   pinMode(BUTTON_A, INPUT_PULLUP);
   pinMode(BUTTON_C, INPUT_PULLUP);
+}
+
+// Prepare Display: Switch the shared pins back to OUTPUT so the screen can
+// receive commands.
+void prepareDisplay() {
+  pinMode(EPD_CS, OUTPUT);
+  pinMode(SRAM_CS, OUTPUT);
 }
 
 void setup() {
@@ -94,13 +102,13 @@ void setup() {
   pinMode(BUTTON_C, INPUT_PULLUP);
 
   display.begin();
-  reclaimButtons(); // Reclaim GPIO 0 immediately after library starts
 
   // Rotate to landscape (0 = standard orientation, wider than tall)
+  prepareDisplay(); // Ensure pins are OUTPUT before display commands
   display.setRotation(0);
   display.clearBuffer();
   display.display();
-  reclaimButtons(); // Reclaim GPIO 0 again after display update
+  reclaimButtons(); // Reclaim for button polling during idle
   Serial.println("eInk display initialized and cleared.");
 
   // --- Network Setup ---
@@ -312,6 +320,7 @@ void drawScaledBitmap(int16_t x, int16_t y, const unsigned char *bitmap,
 }
 
 void updateDisplay(struct tm *timeinfo) {
+  prepareDisplay(); // Restore pin modes for display communication
   display.clearBuffer();
 
   // Explicitly draw a full white rectangle over the entire screen dimensions
