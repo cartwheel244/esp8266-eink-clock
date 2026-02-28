@@ -82,15 +82,15 @@ void reclaimButtons() {
   pinMode(14, INPUT_PULLUP); // Button A (Right)
 }
 
-// Prepare Display: Switch the shared pins back to OUTPUT so the screen can
-// receive commands.
+// Prepare Display: Restore pins to SPI mode
 void prepareDisplay() {
   pinMode(EPD_CS, OUTPUT);
   pinMode(SRAM_CS, OUTPUT);
   pinMode(EPD_DC, OUTPUT);
-  // Restore SPI pins for communication
-  pinMode(13, OUTPUT); // MOSI
-  pinMode(14, OUTPUT); // SCK
+
+  // Re-initialize SPI hardware to take back Pins 13 (MOSI) and 14 (SCK)
+  // from our manual pinMode(INPUT_PULLUP) state.
+  SPI.begin();
 }
 
 void setup() {
@@ -446,11 +446,15 @@ void updateDisplay(struct tm *timeinfo) {
     display.print("F");
   }
 
+  // --- Draw City Name Label ---
+  display.setFont(&FreeSans12pt7b);
+  display.setTextSize(1);
+  // Draw city label centered under the time/date area or at the bottom
+  display.setCursor(5, 120);
+  display.print("Location: ");
+  display.print(displayCityName);
+
   // --- Execute Screen Update ---
-  // Partial refresh: Setting this to `true` on supported drivers uses less
-  // power and dramatically reduces exactly the aggressive screen flashing eInks
-  // do.
   display.display(true);
-  reclaimButtons(); // CRITICAL: Reset pins 0 and 2 so they become buttons
-                    // again!
+  reclaimButtons();
 }
