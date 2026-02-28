@@ -27,10 +27,10 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 // =========================================================================
 // CONFIGURATION: eINK DISPLAY (Feather Wing 2.13" Monochrome)
 // =========================================================================
-#define EPD_CS 15
-#define EPD_DC 16
-#define SRAM_CS 2
-#define EPD_RESET 0
+#define EPD_CS 0
+#define EPD_DC 15
+#define SRAM_CS 16
+#define EPD_RESET -1
 #define EPD_BUSY                                                               \
   -1 // Can set to -1 on FeatherWings since we don't always use it
 

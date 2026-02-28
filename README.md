@@ -35,13 +35,13 @@ However, if you are wiring them side-by-side on a breadboard or with jumper wire
 | :--- | :--- | :--- |
 | **3V** | **3V** | Power |
 | **GND** | **GND** | Ground |
-| **SCK** | **SCK** | SPI Clock |
-| **MOSI** | **MOSI** | SPI Data Out |
-| **MISO** | **MISO** | SPI Data In (SRAM reading) |
-| **Pin 15 (RX)** | **CS (EPD_CS)** | eInk Chip Select |
-| **Pin 16 (TX)** | **DC (EPD_DC)** | Data/Command |
-| **Pin 2** | **SRCS (SRAM_CS)** | SRAM Chip Select |
-| **Pin 0** | **RST (EPD_RESET)** | Reset |
+| **SCK (14)** | **SCK** | SPI Clock |
+| **MO (13)** | **MOSI** | SPI Data Out |
+| **MI (12)** | **MISO** | SPI Data In (SRAM reading) |
+| **Pin 0** | **CS (EPD_CS)** | eInk Chip Select |
+| **Pin 15** | **DC (EPD_DC)** | Data/Command |
+| **Pin 16** | **SRCS (SRAM_CS)** | SRAM Chip Select |
+| *(Not connected)* | **RST (EPD_RESET)** | Reset |
 | *(Not connected)* | **BUSY** | Busy Signal (Optional) |
 
 *Note: The Busy pin is explicitly set to `-1` in the code, meaning the library will use fixed internal delays instead of waiting on the physical hardware busy pin, freeing up a GPIO pin for you.*
