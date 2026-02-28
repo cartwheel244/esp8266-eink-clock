@@ -1,5 +1,5 @@
+#include "Adafruit_ThinkInk.h"
 #include "secrets.h"
-#include <Adafruit_EPD.h>
 #include <Adafruit_GFX.h>
 #include <ESP8266WiFi.h>
 #include <Fonts/FreeSans9pt7b.h>
@@ -34,9 +34,10 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 #define EPD_BUSY                                                               \
   -1 // Can set to -1 on FeatherWings since we don't always use it
 
-// The 2.13" Monochrome FeatherWing uses the SSD1680 driver
-Adafruit_SSD1680 display(250, 122, EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
-                         EPD_BUSY);
+// The 2.13" Monochrome FeatherWing uses the ThinkInk wrapper
+// to automatically handle the internal SSD1680 panel SRAM offset (resolving the
+// 20% cut-off issue)
+ThinkInk_213_Mono_BN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
 
 // Globals
 int lastMinute = -1;
