@@ -34,8 +34,9 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 #define EPD_BUSY                                                               \
   -1 // Can set to -1 on FeatherWings since we don't always use it
 
-// The 2.9" Tri-Color FeatherWing (Product 4777) uses the IL0373 chipset
-ThinkInk_290_Tricolor_Z10 display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY);
+// The 2.9" Grayscale FeatherWing (Product 4777) uses the IL0373 chipset
+ThinkInk_290_Grayscale4_T5 display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
+                                   EPD_BUSY);
 
 // Globals
 int lastMinute = -1;
@@ -188,8 +189,8 @@ void updateDisplay(struct tm *timeinfo) {
   display.print(dateStr);
 
   // --- Execute Screen Update ---
-  // Tri-color displays do NOT support hardware partial refreshes.
-  // We must execute a full screen refresh. This will take ~10-15 seconds per
-  // update.
-  display.display();
+  // Partial refresh: Setting this to `true` on supported drivers uses less
+  // power and dramatically reduces exactly the aggressive screen flashing eInks
+  // do.
+  display.display(true);
 }
