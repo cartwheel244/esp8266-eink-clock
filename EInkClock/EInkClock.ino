@@ -17,17 +17,17 @@
 const char *WIFI_SSID = SECRET_WIFI_SSID;
 const char *WIFI_PASSWORD = SECRET_WIFI_PASSWORD;
 
-// ESP8266 Core Timezone String
-// "EST5EDT,M3.2.0,M11.1.0" defines:
-// EST is UTC-5. EDT is UTC-4.
-// DST starts the 2nd Sunday (2) of March (M3) at 02:00 (0).
-// DST ends the 1st Sunday (1) of November (M11) at 02:00 (0).
-// The ESP8266 internal C library handles this math perfectly in the background.
-const char *TZ_INFO = "EST5EDT,M3.2.0,M11.1.0";
+// NTP Servers
+const char *NTP_SERVER_1 = "pool.ntp.org";
+const char *NTP_SERVER_2 = "time.nist.gov";
 
 // NTP Servers
 const char *NTP_SERVER_1 = "pool.ntp.org";
 const char *NTP_SERVER_2 = "time.nist.gov";
+
+// POSIX Timezone Strings
+const char *TZ_EASTERN = "EST5EDT,M3.2.0,M11.1.0";
+const char *TZ_CENTRAL = "CST6CDT,M3.2.0,M11.1.0";
 
 // =========================================================================
 // CONFIGURATION: WEATHER
@@ -136,7 +136,7 @@ void setup() {
 
   // Configure NTP with the exact TZ string so ESP8266 natively converts to
   // Eastern Time
-  configTime(TZ_INFO, NTP_SERVER_1, NTP_SERVER_2);
+  configTime(TZ_EASTERN, NTP_SERVER_1, NTP_SERVER_2);
 
   // We do not wait here anymore.
   // The ESP8266 will sink time automatically in the background once WiFi
@@ -229,19 +229,23 @@ void loop() {
           Serial.printf(">>> LOW DETECTED ON PIN %d <<<\n", p);
 
           if (p == 13 || p == 12) {
-            // Pin 13 is Left, Pin 12 is Middle -> Both go to Woburn
+            // Left or Middle -> Woburn (Eastern)
             if (activeCity != "Woburn,MA,US") {
-              Serial.printf("Switching to Woburn via Pin %d...\n", p);
+              Serial.printf(
+                  ">>> Switching to Woburn (Eastern Time) via Pin %d <<<\n", p);
               activeCity = "Woburn,MA,US";
               displayCityName = "Woburn";
+              configTime(TZ_EASTERN, NTP_SERVER_1, NTP_SERVER_2);
               forceUpdate = true;
             }
           } else if (p == 14) {
-            // Pin 14 is likely the Right button
+            // Right -> Cypress (Central)
             if (activeCity != "Cypress,TX,US") {
-              Serial.println("Switching to Cypress via Pin 14...");
+              Serial.println(
+                  ">>> Switching to Cypress (Central Time) via Pin 14 <<<");
               activeCity = "Cypress,TX,US";
               displayCityName = "Cypress";
+              configTime(TZ_CENTRAL, NTP_SERVER_1, NTP_SERVER_2);
               forceUpdate = true;
             }
           }
@@ -445,14 +449,6 @@ void updateDisplay(struct tm *timeinfo) {
     display.setCursor(rightEdge + degreeGap - fx1, yBase);
     display.print("F");
   }
-
-  // --- Draw City Name Label ---
-  display.setFont(&FreeSans12pt7b);
-  display.setTextSize(1);
-  // Draw city label centered under the time/date area or at the bottom
-  display.setCursor(5, 120);
-  display.print("Location: ");
-  display.print(displayCityName);
 
   // --- Execute Screen Update ---
   display.display(true);
