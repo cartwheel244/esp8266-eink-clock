@@ -1,0 +1,167 @@
+#include "secrets.h"
+#include <Adafruit_EPD.h>
+#include <Adafruit_GFX.h>
+#include <ESP8266WiFi.h>
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSansBold18pt7b.h>
+#include <time.h>
+
+// =========================================================================
+// CONFIGURATION: WI-FI & TIME
+// =========================================================================
+const char *WIFI_SSID = SECRET_WIFI_SSID;
+const char *WIFI_PASSWORD = SECRET_WIFI_PASSWORD;
+
+// ESP8266 Core Timezone String
+// "EST5EDT,M3.2.0,M11.1.0" defines:
+// EST is UTC-5. EDT is UTC-4.
+// DST starts the 2nd Sunday (2) of March (M3) at 02:00 (0).
+// DST ends the 1st Sunday (1) of November (M11) at 02:00 (0).
+// The ESP8266 internal C library handles this math perfectly in the background.
+const char *TZ_INFO = "EST5EDT,M3.2.0,M11.1.0";
+
+// NTP Servers
+const char *NTP_SERVER_1 = "pool.ntp.org";
+const char *NTP_SERVER_2 = "time.nist.gov";
+
+// =========================================================================
+// CONFIGURATION: eINK DISPLAY (Feather Wing 2.13" Monochrome)
+// =========================================================================
+#define EPD_CS 15
+#define EPD_DC 16
+#define SRAM_CS 2
+#define EPD_RESET 0
+#define EPD_BUSY                                                               \
+  -1 // Can set to -1 on FeatherWings since we don't always use it
+
+// The 2.13" Monochrome FeatherWing uses the SSD1680 driver
+Adafruit_SSD1680 display(250, 122, EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
+                         EPD_BUSY);
+
+// Globals
+int lastMinute = -1;
+const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("\n\n--- ESP8266 eInk Clock ---");
+
+  // --- Display Setup ---
+  Serial.println("Initializing eInk display...");
+  display.begin();
+  // Rotate to landscape
+  display.setRotation(1);
+  display.clearBuffer();
+  display.display();
+
+  // --- Network Setup ---
+  Serial.print("Connecting to WiFi ");
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  int retry_count = 0;
+  while (WiFi.status() != WL_CONNECTED && retry_count < 20) {
+    delay(500);
+    Serial.print(".");
+    retry_count++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(" Connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println(" Failed to connect. Will continue trying in loop.");
+  }
+
+  // --- Time Setup ---
+  Serial.println("Synchronizing Time via NTP...");
+
+  // Set the timezone parsing rule
+  setenv("TZ", TZ_INFO, 1);
+  tzset();
+
+  // Configure NTP (Note: timezone offset args are 0 because TZ env handles it
+  // dynamically)
+  configTime(0, 0, NTP_SERVER_1, NTP_SERVER_2);
+
+  // Wait until NTP syncs the real time (year > 2000)
+  time_t now = time(nullptr);
+  retry_count = 0;
+  while (now < 100000 && retry_count < 20) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+    retry_count++;
+  }
+  Serial.println("\nTime Synchronized.");
+}
+
+void loop() {
+  time_t now = time(nullptr);
+  struct tm *timeinfo = localtime(&now);
+
+  // Only update the display if the minute has actually rolled over
+  if (timeinfo->tm_min != lastMinute) {
+    lastMinute = timeinfo->tm_min;
+
+    // We only update if time is actually valid
+    if (timeinfo->tm_year > 100) {
+      updateDisplay(timeinfo);
+    } else {
+      Serial.println("Time not yet valid, skipping screen refresh.");
+    }
+  }
+
+  // Deep modem sleep to conserve power, waking precisely at the top of the next
+  // minute
+  int currentSecond = timeinfo->tm_sec;
+  int secondsToWait = 60 - currentSecond;
+
+  Serial.printf("Sleeping %d seconds until next minute rollover...\n",
+                secondsToWait);
+
+  // A simple tight delay saves significant CPU power on the ESP8266.
+  // Delay takes milliseconds.
+  delay(secondsToWait * 1000);
+}
+
+void updateDisplay(struct tm *timeinfo) {
+  display.clearBuffer();
+  // We use black text on a white background (which is the clearBuffer default)
+
+  // 1. Format the Time (HH:MM)
+  char timeStr[10];
+  // Using %02d to ensure 0-padding for both hours and minutes
+  sprintf(timeStr, "%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min);
+
+  // 2. Format the Date (Day Mon Date)
+  char dateStr[20];
+  sprintf(dateStr, "%s %s %d", days[timeinfo->tm_wday],
+          months[timeinfo->tm_mon], timeinfo->tm_mday);
+
+  Serial.printf("Drawing Screen -> %s | %s\n", timeStr, dateStr);
+
+  // --- Draw Text ---
+  // Note: Adafruit GFX prints custom fonts from their baseline (bottom-left)
+  // not top-left like default fonts. So the Y coord must be > 0.
+
+  // Draw Time
+  display.setFont(&FreeSansBold18pt7b);
+  display.setTextColor(EPD_BLACK);
+  // Center roughly horizontally and position in upper half
+  display.setCursor(65, 55);
+  display.print(timeStr);
+
+  // Draw Date
+  display.setFont(&FreeSans9pt7b);
+  display.setCursor(65, 95);
+  display.print(dateStr);
+
+  // --- Execute Screen Update ---
+  // Partial refresh: Setting this to `true` on supported drivers uses less
+  // power and dramatically reduces exactly the aggressive screen flashing eInks
+  // do.
+  display.display(true);
+}

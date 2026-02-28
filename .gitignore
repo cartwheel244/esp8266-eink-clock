@@ -1,0 +1,31 @@
+# Arduino IDE and build files
+build/
+*.bin
+*.elf
+*.hex
+*.map
+*.o
+
+# IDE specific files
+.vscode/
+.vscode/*
+!.vscode/settings.json
+*.sublime-project
+*.sublime-workspace
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Sensitive credentials (DO NOT COMMIT!)
+# Note: You should ideally move your WIFI_SSID and WIFI_PASSWORD
+# into a separate config file like `config.h` or `secrets.h` and include it,
+# then add that filename here so your passwords aren't pushed to GitHub.
+secrets.h
+config.h
