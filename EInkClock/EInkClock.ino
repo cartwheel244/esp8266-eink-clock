@@ -203,61 +203,64 @@ void loop() {
 
   bool forceUpdate = false;
 
-  // Re-init Pins 12/13 as inputs for polling
-  pinMode(12, INPUT_PULLUP);
-  pinMode(13, INPUT_PULLUP);
+  // SCAN ALL POTENTIAL PINS
+  int scanPins[] = {0, 2, 4, 5, 12, 13, 14, 15, 16};
+  for (int p : scanPins) {
+    pinMode(p, INPUT_PULLUP);
+  }
 
-  Serial.printf("Sleeping %d seconds. POLLING PINS 12 (B) and 13 (C)...\n",
-                secondsToWait);
+  Serial.printf(
+      "Sleeping %d seconds. FULL PIN SCAN MODE (0,2,4,5,12,13,14,15,16)...\n",
+      secondsToWait);
 
   while (millis() - startSleep < msToWait) {
     // Diagnostic Heartbeat every 1 second
     if (millis() - lastHeartbeat >= 1000) {
       lastHeartbeat = millis();
-      int v0 = digitalRead(0);
-      int v2 = digitalRead(2);
-      int v12 = digitalRead(12);
-      int v13 = digitalRead(13);
-      Serial.printf("[DEBUG] P0:%d P2:%d P12:%d P13:%d | Left:%d ms\n", v0, v2,
-                    v12, v13, (int)(msToWait - (millis() - startSleep)));
+      Serial.print("[SCAN] ");
+      for (int p : scanPins) {
+        Serial.printf("P%d:%d ", p, digitalRead(p));
+      }
+      Serial.printf("| Left:%d ms\n",
+                    (int)(msToWait - (millis() - startSleep)));
     }
 
-    // Check Pin 12 (Button B)
-    if (digitalRead(12) == LOW) {
-      Serial.println(">>> LOW DETECTED ON PIN 12 (Button B) <<<");
-      delay(50); // debounce
-      if (digitalRead(12) == LOW) {
-        if (activeCity != "Woburn,MA,US") {
-          Serial.println("Switching to Woburn (Middle Button)...");
-          activeCity = "Woburn,MA,US";
-          displayCityName = "Woburn";
-          forceUpdate = true;
-          break;
-        } else {
-          Serial.println("Already showing Woburn.");
-          delay(500); // Wait a bit
+    // Check for ANY low pin (excluding 15/DC which might be low normally?)
+    for (int p : scanPins) {
+      if (digitalRead(p) == LOW) {
+        // Handle Pin 12 (Middle)
+        if (p == 12) {
+          delay(50);
+          if (digitalRead(12) == LOW) {
+            if (activeCity != "Woburn,MA,US") {
+              Serial.println(
+                  ">>> Middle Button (P12) -> Switching to Woburn <<<");
+              activeCity = "Woburn,MA,US";
+              displayCityName = "Woburn";
+              forceUpdate = true;
+            }
+          }
+        }
+        // Handle potential Right Button (We'll see which pin it is in the log)
+        else if (p != 15 && p != 14 && p != 0 && p != 16) {
+          delay(50);
+          if (digitalRead(p) == LOW) {
+            Serial.printf(">>> LOW DETECTED ON PIN %d <<<\n", p);
+            if (p == 13 || p == 2 || p == 4 || p == 5) {
+              if (activeCity != "Cypress,TX,US") {
+                Serial.printf("Switching to Cypress via Pin %d...\n", p);
+                activeCity = "Cypress,TX,US";
+                displayCityName = "Cypress";
+                forceUpdate = true;
+              }
+            }
+          }
         }
       }
     }
 
-    // Check Pin 13 (Button C)
-    if (digitalRead(13) == LOW) {
-      Serial.println(">>> LOW DETECTED ON PIN 13 (Button C) <<<");
-      delay(50); // debounce
-      if (digitalRead(13) == LOW) {
-        if (activeCity != "Cypress,TX,US") {
-          Serial.println("Switching to Cypress (Right Button)...");
-          activeCity = "Cypress,TX,US";
-          displayCityName = "Cypress";
-          forceUpdate = true;
-          break;
-        } else {
-          Serial.println("Already showing Cypress.");
-          delay(500); // Wait a bit
-        }
-      }
-    }
-
+    if (forceUpdate)
+      break;
     delay(100);
   }
 
