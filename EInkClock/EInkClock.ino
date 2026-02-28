@@ -1,9 +1,13 @@
 #include "Adafruit_ThinkInk.h"
 #include "secrets.h"
+#include "weather_icons.h"
 #include <Adafruit_GFX.h>
+#include <ArduinoJson.h>
+#include <ESP8266HTTPClient.h>
 #include <ESP8266WiFi.h>
-#include <Fonts/FreeSans9pt7b.h>
-#include <Fonts/FreeSansBold18pt7b.h>
+#include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSansBold24pt7b.h>
+#include <WiFiClientSecure.h>
 #include <time.h>
 
 // =========================================================================
