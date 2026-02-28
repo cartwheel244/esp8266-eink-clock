@@ -25,7 +25,30 @@ Since the ESP8266 chip requires compiling C++ rather than copying Python files, 
 
 ---
 
-## Part 2: Install Required Libraries
+## Part 2: Wiring & Hardware Assembly
+
+Because both the ESP8266 board and the eInk display are in the "Feather" format, the easiest way to wire them is to simply solder stacking headers and plug them directly into each other! 
+
+However, if you are wiring them side-by-side on a breadboard or with jumper wires, here is the exact pinout mapping used by default in `EInkClock.ino`:
+
+| Feather ESP8266 Pin | eInk FeatherWing Pin | Function |
+| :--- | :--- | :--- |
+| **3V** | **3V** | Power |
+| **GND** | **GND** | Ground |
+| **SCK** | **SCK** | SPI Clock |
+| **MOSI** | **MOSI** | SPI Data Out |
+| **MISO** | **MISO** | SPI Data In (SRAM reading) |
+| **Pin 15 (RX)** | **CS (EPD_CS)** | eInk Chip Select |
+| **Pin 16 (TX)** | **DC (EPD_DC)** | Data/Command |
+| **Pin 2** | **SRCS (SRAM_CS)** | SRAM Chip Select |
+| **Pin 0** | **RST (EPD_RESET)** | Reset |
+| *(Not connected)* | **BUSY** | Busy Signal (Optional) |
+
+*Note: The Busy pin is explicitly set to `-1` in the code, meaning the library will use fixed internal delays instead of waiting on the physical hardware busy pin, freeing up a GPIO pin for you.*
+
+---
+
+## Part 3: Install Required Libraries
 
 The code relies on Adafruit's standard graphics and eInk display libraries.
 
