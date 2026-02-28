@@ -52,9 +52,8 @@ void setup() {
   // --- Display Setup ---
   Serial.println("Initializing eInk display...");
   display.begin();
-  // Rotate to landscape (3 = 270 degrees / wider than tall with USB port on the
-  // right)
-  display.setRotation(3);
+  // Rotate to landscape (0 = standard orientation, wider than tall)
+  display.setRotation(0);
   display.clearBuffer();
   display.display();
   Serial.println("eInk display initialized and cleared.");
@@ -80,13 +79,9 @@ void setup() {
   // --- Time Setup ---
   Serial.println("Configuring NTP Timezones...");
 
-  // Set the timezone parsing rule
-  setenv("TZ", TZ_INFO, 1);
-  tzset();
-
-  // Configure NTP (Note: timezone offset args are 0 because TZ env handles it
-  // dynamically)
-  configTime(0, 0, NTP_SERVER_1, NTP_SERVER_2);
+  // Configure NTP with the exact TZ string so ESP8266 natively converts to
+  // Eastern Time
+  configTime(TZ_INFO, NTP_SERVER_1, NTP_SERVER_2);
 
   // We do not wait here anymore.
   // The ESP8266 will sink time automatically in the background once WiFi
