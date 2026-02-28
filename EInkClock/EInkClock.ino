@@ -34,7 +34,14 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 // =========================================================================
 // Register at openweathermap.org and place API key in secrets.h
 const char *OWM_API_KEY = SECRET_OPENWEATHER_API_KEY;
-const char *WEATHER_CITY = "Woburn,MA,US";
+
+// Hardware Buttons connected to ESP8266 GPIO
+#define BUTTON_A 0  // Left Button
+#define BUTTON_B 16 // Center Button (Unused)
+#define BUTTON_C 2  // Right Button
+
+String activeCity = "Woburn,MA,US";
+String displayCityName = "Woburn";
 
 // =========================================================================
 // CONFIGURATION: eINK DISPLAY (Feather Wing 2.13" Monochrome)
@@ -73,8 +80,11 @@ void setup() {
   delay(1000);
   Serial.println("\n\n--- ESP8266 eInk Clock ---");
 
-  // --- Display Setup ---
-  Serial.println("Initializing eInk display...");
+  // --- Display & Hardware Setup ---
+  Serial.println("Initializing eInk display and buttons...");
+  pinMode(BUTTON_A, INPUT_PULLUP);
+  pinMode(BUTTON_C, INPUT_PULLUP);
+
   display.begin();
   // Rotate to landscape (0 = standard orientation, wider than tall)
   display.setRotation(0);
@@ -162,17 +172,54 @@ void loop() {
     // Serial.println("Minute has not rolled over yet.");
   }
 
-  // Deep modem sleep to conserve power, waking precisely at the top of the next
-  // minute
+  // --- Deep modem sleep & Button Polling ---
+  // A simple tight delay saves significant CPU power on the ESP8266.
+  // Instead of waiting 60s natively and blocking everything, we chop the sleep
+  // into 100ms segments and check if Button A or C get pressed!
   int currentSecond = timeinfo->tm_sec;
   int secondsToWait = 60 - currentSecond;
+  unsigned long msToWait = secondsToWait * 1000;
+  unsigned long startSleep = millis();
 
-  Serial.printf("Sleeping %d seconds until next minute rollover...\n",
+  Serial.printf("Sleeping %d seconds until next minute rollover while polling "
+                "buttons...\n",
                 secondsToWait);
+  bool forceUpdate = false;
 
-  // A simple tight delay saves significant CPU power on the ESP8266.
-  // Delay takes milliseconds.
-  delay(secondsToWait * 1000);
+  while (millis() - startSleep < msToWait) {
+    if (digitalRead(BUTTON_A) == LOW && activeCity != "Woburn,MA,US") {
+      delay(50); // debounce
+      if (digitalRead(BUTTON_A) == LOW) {
+        Serial.println("Button A Pressed! Switching to Woburn, MA");
+        activeCity = "Woburn,MA,US";
+        displayCityName = "Woburn";
+        forceUpdate = true;
+        break; // break sleep immediately
+      }
+    }
+
+    if (digitalRead(BUTTON_C) == LOW && activeCity != "Cypress,TX,US") {
+      delay(50); // debounce
+      if (digitalRead(BUTTON_C) == LOW) {
+        Serial.println("Button C Pressed! Switching to Cypress, TX");
+        activeCity = "Cypress,TX,US";
+        displayCityName = "Cypress";
+        forceUpdate = true;
+        break; // break sleep immediately
+      }
+    }
+
+    delay(100); // Poll every 100ms to preserve battery while maintaining
+                // instant UI feedback.
+  }
+
+  if (forceUpdate) {
+    // We force an immediate fetch and redraw outside the 1 minute clock cycle
+    fetchWeather();
+    now = time(nullptr);
+    timeinfo = localtime(&now);
+    updateDisplay(timeinfo);
+  }
 }
 
 void fetchWeather() {
@@ -186,7 +233,7 @@ void fetchWeather() {
 
   HTTPClient https;
   String url = String("https://api.openweathermap.org/data/2.5/weather?q=") +
-               WEATHER_CITY + "&appid=" + OWM_API_KEY + "&units=imperial";
+               activeCity + "&appid=" + OWM_API_KEY + "&units=imperial";
 
   if (https.begin(client, url)) {
     int httpCode = https.GET();
@@ -284,6 +331,15 @@ void updateDisplay(struct tm *timeinfo) {
   // Draw Date with 12pt font below time
   display.setFont(&FreeSans12pt7b);
   printCenteredInRegion(dateStr, 110, 0, leftWidth);
+
+  // Draw active location name at the bottom of the left block in 9pt
+  // (Switching to default system font by passing NULL for tiny text)
+  display.setFont();
+  display.setTextSize(1);
+  int16_t locW = displayCityName.length() *
+                 6; // 5x7 default font roughly 6px wide per char
+  display.setCursor((leftWidth - locW) / 2, 118);
+  display.print(displayCityName);
 
   // --- Right 1/3 (Weather & Temp) ---
   if (currentWeather.valid) {
