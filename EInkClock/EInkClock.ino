@@ -52,8 +52,9 @@ void setup() {
   // --- Display Setup ---
   Serial.println("Initializing eInk display...");
   display.begin();
-  // Rotate to landscape
-  display.setRotation(1);
+  // Rotate to landscape (3 = 270 degrees / wider than tall with USB port on the
+  // right)
+  display.setRotation(3);
   display.clearBuffer();
   display.display();
   Serial.println("eInk display initialized and cleared.");
@@ -148,13 +149,26 @@ void loop() {
 }
 
 void updateDisplay(struct tm *timeinfo) {
+  // Clear the internal buffer
   display.clearBuffer();
-  // We use black text on a white background (which is the clearBuffer default)
 
-  // 1. Format the Time (HH:MM)
+  // Explicitly draw a full white rectangle over the entire screen dimensions
+  // This physically forces the Adafruit GFX buffer to overwrite the entire
+  // 250x122 grid and prevents the "20% unrefreshed" trailing artifact issue
+  // caused by driver padding.
+  display.fillRect(0, 0, display.width(), display.height(), EPD_WHITE);
+
+  // 1. Format the Time (12-Hour HH:MM format)
+  int displayHour = timeinfo->tm_hour;
+  if (displayHour == 0) {
+    displayHour = 12; // Midnight is 12:00
+  } else if (displayHour > 12) {
+    displayHour -= 12; // Convert 13+ to 1+
+  }
+
   char timeStr[10];
-  // Using %02d to ensure 0-padding for both hours and minutes
-  sprintf(timeStr, "%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min);
+  // Using %d instead of %02d for the hour so "01:00" becomes "1:00" natively
+  sprintf(timeStr, "%d:%02d", displayHour, timeinfo->tm_min);
 
   // 2. Format the Date (Day Mon Date)
   char dateStr[20];
