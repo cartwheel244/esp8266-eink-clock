@@ -56,6 +56,7 @@ void setup() {
   display.setRotation(1);
   display.clearBuffer();
   display.display();
+  Serial.println("eInk display initialized and cleared.");
 
   // --- Network Setup ---
   Serial.print("Connecting to WiFi ");
@@ -76,7 +77,7 @@ void setup() {
   }
 
   // --- Time Setup ---
-  Serial.println("Synchronizing Time via NTP...");
+  Serial.println("Configuring NTP Timezones...");
 
   // Set the timezone parsing rule
   setenv("TZ", TZ_INFO, 1);
@@ -86,19 +87,32 @@ void setup() {
   // dynamically)
   configTime(0, 0, NTP_SERVER_1, NTP_SERVER_2);
 
-  // Wait until NTP syncs the real time (year > 2000)
-  time_t now = time(nullptr);
-  retry_count = 0;
-  while (now < 100000 && retry_count < 20) {
-    delay(500);
-    Serial.print(".");
-    now = time(nullptr);
-    retry_count++;
-  }
-  Serial.println("\nTime Synchronized.");
+  // We do not wait here anymore.
+  // The ESP8266 will sink time automatically in the background once WiFi
+  // connects.
+  Serial.println("Setup complete. Entering main loop.");
 }
 
 void loop() {
+  // 1. Maintain WiFi Connection
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi not connected. Attempting to connect...");
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    // Give it 5 seconds to try
+    int retries = 0;
+    while (WiFi.status() != WL_CONNECTED && retries < 10) {
+      delay(500);
+      Serial.print(".");
+      retries++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nWiFi Reconnected!");
+    } else {
+      Serial.println("\nWiFi connection failed. Will retry next loop.");
+    }
+  }
   time_t now = time(nullptr);
   struct tm *timeinfo = localtime(&now);
 
@@ -108,10 +122,16 @@ void loop() {
 
     // We only update if time is actually valid
     if (timeinfo->tm_year > 100) {
+      Serial.println(
+          "Minute rolled over and time is valid. Updating display...");
       updateDisplay(timeinfo);
     } else {
-      Serial.println("Time not yet valid, skipping screen refresh.");
+      Serial.println("Minute rolled over but time is NOT valid (year <= 100). "
+                     "Skipping screen refresh.");
     }
+  } else {
+    // Optional: uncomment if you want to see every loop iteration
+    // Serial.println("Minute has not rolled over yet.");
   }
 
   // Deep modem sleep to conserve power, waking precisely at the top of the next
