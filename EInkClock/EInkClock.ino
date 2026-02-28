@@ -21,10 +21,6 @@ const char *WIFI_PASSWORD = SECRET_WIFI_PASSWORD;
 const char *NTP_SERVER_1 = "pool.ntp.org";
 const char *NTP_SERVER_2 = "time.nist.gov";
 
-// NTP Servers
-const char *NTP_SERVER_1 = "pool.ntp.org";
-const char *NTP_SERVER_2 = "time.nist.gov";
-
 // POSIX Timezone Strings
 const char *TZ_EASTERN = "EST5EDT,M3.2.0,M11.1.0";
 const char *TZ_CENTRAL = "CST6CDT,M3.2.0,M11.1.0";
