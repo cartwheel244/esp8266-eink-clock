@@ -74,6 +74,14 @@ WeatherData currentWeather = {0.0, "", false};
 // Function prototypes
 void fetchWeather();
 void updateDisplay(struct tm *timeinfo);
+void reclaimButtons();
+
+// Reclaim Pins: The Adafruit EPD library sets Chip Select pins (0, 16) to
+// OUTPUT. We must manually set them back to INPUT_PULLUP to read the buttons!
+void reclaimButtons() {
+  pinMode(BUTTON_A, INPUT_PULLUP);
+  pinMode(BUTTON_C, INPUT_PULLUP);
+}
 
 void setup() {
   Serial.begin(115200);
@@ -86,10 +94,13 @@ void setup() {
   pinMode(BUTTON_C, INPUT_PULLUP);
 
   display.begin();
+  reclaimButtons(); // Reclaim GPIO 0 immediately after library starts
+
   // Rotate to landscape (0 = standard orientation, wider than tall)
   display.setRotation(0);
   display.clearBuffer();
   display.display();
+  reclaimButtons(); // Reclaim GPIO 0 again after display update
   Serial.println("eInk display initialized and cleared.");
 
   // --- Network Setup ---
@@ -173,48 +184,59 @@ void loop() {
   }
 
   // --- Deep modem sleep & Button Polling ---
-  // A simple tight delay saves significant CPU power on the ESP8266.
-  // Instead of waiting 60s natively and blocking everything, we chop the sleep
-  // into 100ms segments and check if Button A or C get pressed!
   int currentSecond = timeinfo->tm_sec;
   int secondsToWait = 60 - currentSecond;
-  unsigned long msToWait = secondsToWait * 1000;
+  if (secondsToWait <= 0)
+    secondsToWait = 60;
+
+  unsigned long msToWait = (unsigned long)secondsToWait * 1000;
   unsigned long startSleep = millis();
 
+  bool forceUpdate = false;
   Serial.printf("Sleeping %d seconds until next minute rollover while polling "
                 "buttons...\n",
                 secondsToWait);
-  bool forceUpdate = false;
 
   while (millis() - startSleep < msToWait) {
-    if (digitalRead(BUTTON_A) == LOW && activeCity != "Woburn,MA,US") {
+    // Check Left Button (Woburn)
+    if (digitalRead(BUTTON_A) == LOW) {
+      Serial.println("BUTTON A (Left) Detected!");
       delay(50); // debounce
       if (digitalRead(BUTTON_A) == LOW) {
-        Serial.println("Button A Pressed! Switching to Woburn, MA");
-        activeCity = "Woburn,MA,US";
-        displayCityName = "Woburn";
-        forceUpdate = true;
-        break; // break sleep immediately
+        if (activeCity != "Woburn,MA,US") {
+          Serial.println("Switching to Woburn, MA...");
+          activeCity = "Woburn,MA,US";
+          displayCityName = "Woburn";
+          forceUpdate = true;
+          break;
+        } else {
+          Serial.println("Already showing Woburn.");
+        }
       }
     }
 
-    if (digitalRead(BUTTON_C) == LOW && activeCity != "Cypress,TX,US") {
+    // Check Right Button (Cypress)
+    if (digitalRead(BUTTON_C) == LOW) {
+      Serial.println("BUTTON C (Right) Detected!");
       delay(50); // debounce
       if (digitalRead(BUTTON_C) == LOW) {
-        Serial.println("Button C Pressed! Switching to Cypress, TX");
-        activeCity = "Cypress,TX,US";
-        displayCityName = "Cypress";
-        forceUpdate = true;
-        break; // break sleep immediately
+        if (activeCity != "Cypress,TX,US") {
+          Serial.println("Switching to Cypress, TX...");
+          activeCity = "Cypress,TX,US";
+          displayCityName = "Cypress";
+          forceUpdate = true;
+          break;
+        } else {
+          Serial.println("Already showing Cypress.");
+        }
       }
     }
 
-    delay(100); // Poll every 100ms to preserve battery while maintaining
-                // instant UI feedback.
+    delay(100);
   }
 
   if (forceUpdate) {
-    // We force an immediate fetch and redraw outside the 1 minute clock cycle
+    Serial.println("Immediate Refresh Triggered by Button.");
     fetchWeather();
     now = time(nullptr);
     timeinfo = localtime(&now);
@@ -409,4 +431,6 @@ void updateDisplay(struct tm *timeinfo) {
   // power and dramatically reduces exactly the aggressive screen flashing eInks
   // do.
   display.display(true);
+  reclaimButtons(); // CRITICAL: Reset pins 0 and 2 so they become buttons
+                    // again!
 }
