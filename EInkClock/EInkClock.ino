@@ -215,13 +215,30 @@ void fetchWeather() {
   }
 }
 
-void printCentered(const char *text, int16_t y) {
+void printCenteredInRegion(const char *text, int16_t y, int16_t regionX,
+                           int16_t regionW) {
   int16_t x1, y1;
   uint16_t w, h;
   display.getTextBounds(text, 0, y, &x1, &y1, &w, &h);
-  int16_t xCenter = (display.width() - w) / 2 - x1;
+  int16_t xCenter = regionX + (regionW - w) / 2 - x1;
   display.setCursor(xCenter, y);
   display.print(text);
+}
+
+void drawScaledBitmap(int16_t x, int16_t y, const unsigned char *bitmap,
+                      int16_t w, int16_t h, uint16_t color, int16_t scale) {
+  int16_t byteWidth = (w + 7) / 8;
+  uint8_t byte = 0;
+  for (int16_t j = 0; j < h; j++, y += scale) {
+    for (int16_t i = 0; i < w; i++) {
+      if (i & 7)
+        byte <<= 1;
+      else
+        byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
+      if (byte & 0x80)
+        display.fillRect(x + i * scale, y, scale, scale, color);
+    }
+  }
 }
 
 void updateDisplay(struct tm *timeinfo) {
@@ -248,18 +265,26 @@ void updateDisplay(struct tm *timeinfo) {
 
   Serial.printf("Drawing Screen -> %s | %s\n", timeStr, dateStr);
 
-  // --- Draw Text ---
   display.setTextColor(EPD_BLACK);
 
-  // Draw Time with much larger font and center it vertically in the top half
-  display.setFont(&FreeSansBold24pt7b);
-  printCentered(timeStr, 50);
+  // Layout bounds (296x128 total)
+  int leftWidth = 196;  // ~2/3 of screen
+  int rightWidth = 100; // ~1/3 of screen
 
-  // Draw Date with larger font and center it below
+  // --- Left 2/3 (Time & Date) ---
+  // Draw Time with 2x scaled 18pt font (~36pt, approx +25-50% larger than 24pt)
+  display.setFont(&FreeSansBold18pt7b);
+  display.setTextSize(2);
+  printCenteredInRegion(timeStr, 65, 0, leftWidth);
+
+  // Reset text size to 1x for remaining operations
+  display.setTextSize(1);
+
+  // Draw Date with 12pt font below time
   display.setFont(&FreeSans12pt7b);
-  printCentered(dateStr, 85);
+  printCenteredInRegion(dateStr, 110, 0, leftWidth);
 
-  // --- Draw Weather if Valid ---
+  // --- Right 1/3 (Weather & Temp) ---
   if (currentWeather.valid) {
     // Determine the icon to draw
     const unsigned char *iconPtr = icon_cloudy; // Default
@@ -279,53 +304,46 @@ void updateDisplay(struct tm *timeinfo) {
       iconPtr = icon_snow;
     }
 
-    // Format temperature just as a number
+    // Draw Weather Icon manually scaled 200% (64x64 natively mapped to pixels)
+    int iconSize = 64;
+    int iconX = leftWidth + (rightWidth - iconSize) / 2;
+    int iconY = 15;
+    drawScaledBitmap(iconX, iconY, iconPtr, 32, 32, EPD_BLACK, 2);
+
+    // Format temperature
     char tempValStr[10];
     sprintf(tempValStr, "%.0f", currentWeather.temp);
 
-    display.setFont(&FreeSans12pt7b);
+    // Draw Temp with massive 24pt font
+    display.setFont(&FreeSansBold24pt7b);
 
-    // 1. Measure the number portion
+    int16_t yBase = 115;
     int16_t x1, y1;
     uint16_t w1, h1;
-    display.getTextBounds(tempValStr, 0, 115, &x1, &y1, &w1, &h1);
+    display.getTextBounds(tempValStr, 0, yBase, &x1, &y1, &w1, &h1);
 
-    // 2. Measure the "F" portion
     int16_t fx1, fy1;
     uint16_t fw, fh;
-    display.getTextBounds("F", 0, 115, &fx1, &fy1, &fw, &fh);
+    display.getTextBounds("F", 0, yBase, &fx1, &fy1, &fw, &fh);
 
-    // 3. Layout Dimensions
-    int iconWidth = 32;
-    int iconGap = 8;
-    int degreeGap = 12; // Gap for the circle
-    int textTotalWidth = w1 + degreeGap + fw;
-    int totalBlockWidth = iconWidth + iconGap + textTotalWidth;
+    int degreeGap = 16;
+    int totalTextWidth = w1 + degreeGap + fw;
+    int textStartX = leftWidth + (rightWidth - totalTextWidth) / 2;
 
-    int16_t startX = (display.width() - totalBlockWidth) / 2;
-
-    // Vertically center the 32px icon perfectly against the numeric text height
-    // Text top = y1, Text bottom = y1 + h1, Text center = y1 + h1/2
-    int16_t iconY = y1 + (h1 / 2) - 16;
-    display.drawBitmap(startX, iconY, iconPtr, 32, 32, EPD_BLACK);
-
-    // Calculate accurate X placement accounting for FreeSans padding (x1)
-    int16_t textX = startX + iconWidth + iconGap - x1;
-    display.setCursor(textX, 115);
+    // Draw Temp Number
+    display.setCursor(textStartX - x1, yBase);
     display.print(tempValStr);
 
-    // Draw Degree Symbol (Small Circle) between the number and 'F'
-    // Right edge of number = startX + iconWidth + iconGap + w1
-    int16_t rightEdge = startX + iconWidth + iconGap + w1;
-    int16_t degX = rightEdge + (degreeGap / 2);
-    int16_t degY = y1 + 4; // Top of the text + 4 px
+    // Draw thick 24pt Degree Symbol
+    int16_t rightEdge = textStartX + w1;
+    int16_t degX = rightEdge + 8;
+    int16_t degY = y1 + 6;
+    display.drawCircle(degX, degY, 5, EPD_BLACK);
+    display.drawCircle(degX, degY, 4, EPD_BLACK);
     display.drawCircle(degX, degY, 3, EPD_BLACK);
-    display.drawCircle(degX, degY, 2,
-                       EPD_BLACK); // Inner circle to make it bold
 
-    // Draw F taking font padding into account
-    int16_t fX = rightEdge + degreeGap - fx1;
-    display.setCursor(fX, 115);
+    // Draw F
+    display.setCursor(rightEdge + degreeGap - fx1, yBase);
     display.print("F");
   }
 
