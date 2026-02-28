@@ -66,9 +66,10 @@ The code relies on Adafruit's standard graphics and eInk display libraries.
 1. **Open the Project:**
    - Double click the `EInkClock/EInkClock.ino` file to open it in the Arduino IDE.
 
-2. **Add Your Wi-Fi Credentials:**
-   - Near the top of the `EInkClock.ino` file, find the lines defining `WIFI_SSID` and `WIFI_PASSWORD`. 
-   - Change `"your_wifi_ssid_here"` and `"your_wifi_password_here"` to your home network details.
+2. **Add Your Wi-Fi Credentials (Security Best Practice):**
+   - The project uses a dedicated `secrets.h` file to keep your passwords secure from Git history.
+   - In the `EInkClock` folder, rename the provided `secrets.example.h` file to `secrets.h`.
+   - Open `secrets.h` and change `"your_wifi_ssid_here"` and `"your_wifi_password_here"` to your home network details.
 
 3. **Upload the Code!**
    - Click the right-arrow **Upload** button in the top-left corner of the IDE.
