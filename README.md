@@ -56,6 +56,7 @@ The code relies on Adafruit's standard graphics and eInk display libraries.
 2. Search for and **Install** the following exact libraries:
    - `Adafruit EPD` (When prompted to install dependencies like Adafruit BusIO or Adafruit GFX, select **Install All**).
    - `Adafruit GFX Library` (Should be installed via above step, but verify).
+   - `ArduinoJson` (by Benoit Blanchon, required for Weather API parsing).
 
 *Note: You do not need an external NTP library; the modern ESP8266 Arduino core has fantastic robust NTP and timezone support natively built-in.*
 

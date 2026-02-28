@@ -3,3 +3,4 @@
 
 #define SECRET_WIFI_SSID "your_wifi_ssid_here"
 #define SECRET_WIFI_PASSWORD "your_wifi_password_here"
+#define SECRET_OPENWEATHER_API_KEY "your_openweathermap_api_key_here"

@@ -25,6 +25,13 @@ const char *NTP_SERVER_1 = "pool.ntp.org";
 const char *NTP_SERVER_2 = "time.nist.gov";
 
 // =========================================================================
+// CONFIGURATION: WEATHER
+// =========================================================================
+// Register at openweathermap.org and place API key in secrets.h
+const char *OWM_API_KEY = SECRET_OPENWEATHER_API_KEY;
+const char *WEATHER_CITY = "Woburn,MA,US";
+
+// =========================================================================
 // CONFIGURATION: eINK DISPLAY (Feather Wing 2.13" Monochrome)
 // =========================================================================
 #define EPD_CS 0
@@ -40,9 +47,21 @@ ThinkInk_290_Grayscale4_EAAMFGN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
 
 // Globals
 int lastMinute = -1;
+int lastWeatherMinute = -1; // To check weather every 15 minutes
 const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+struct WeatherData {
+  float temp;
+  String iconCode;
+  bool valid;
+};
+WeatherData currentWeather = {0.0, "", false};
+
+// Function prototypes
+void fetchWeather();
+void updateDisplay(struct tm *timeinfo);
 
 void setup() {
   Serial.begin(115200);
@@ -118,6 +137,14 @@ void loop() {
 
     // We only update if time is actually valid
     if (timeinfo->tm_year > 100) {
+      // Pull weather every 15 minutes or if we don't have valid weather yet
+      if (!currentWeather.valid ||
+          abs(timeinfo->tm_min - lastWeatherMinute) >= 15 ||
+          lastWeatherMinute == -1) {
+        lastWeatherMinute = timeinfo->tm_min;
+        fetchWeather();
+      }
+
       Serial.println(
           "Minute rolled over and time is valid. Updating display...");
       updateDisplay(timeinfo);
@@ -143,14 +170,60 @@ void loop() {
   delay(secondsToWait * 1000);
 }
 
+void fetchWeather() {
+  if (WiFi.status() != WL_CONNECTED)
+    return;
+
+  Serial.println("Fetching current weather from OpenWeatherMap...");
+  WiFiClientSecure client;
+  client.setInsecure(); // OWM uses HTTPS. Skip validating cert for simple
+                        // weather pull
+
+  HTTPClient https;
+  String url = String("https://api.openweathermap.org/data/2.5/weather?q=") +
+               WEATHER_CITY + "&appid=" + OWM_API_KEY + "&units=imperial";
+
+  if (https.begin(client, url)) {
+    int httpCode = https.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = https.getString();
+
+      StaticJsonDocument<1024> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+
+      if (!error) {
+        currentWeather.temp = doc["main"]["temp"];
+        const char *icon = doc["weather"][0]["icon"];
+        currentWeather.iconCode = String(icon);
+        currentWeather.valid = true;
+        Serial.printf("Weather updated: %.1fF, Icon: %s\n", currentWeather.temp,
+                      icon);
+      } else {
+        Serial.println("JSON Parsing failed.");
+      }
+    } else {
+      Serial.printf("Weather API call failed, error: %s\n",
+                    https.errorToString(httpCode).c_str());
+    }
+    https.end();
+  } else {
+    Serial.println("Unable to connect to HTTPS endpoint.");
+  }
+}
+
+void printCentered(const char *text, int16_t y) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.getTextBounds(text, 0, y, &x1, &y1, &w, &h);
+  int16_t xCenter = (display.width() - w) / 2;
+  display.setCursor(xCenter, y);
+  display.print(text);
+}
+
 void updateDisplay(struct tm *timeinfo) {
-  // Clear the internal buffer
   display.clearBuffer();
 
   // Explicitly draw a full white rectangle over the entire screen dimensions
-  // This physically forces the Adafruit GFX buffer to overwrite the entire
-  // 250x122 grid and prevents the "20% unrefreshed" trailing artifact issue
-  // caused by driver padding.
   display.fillRect(0, 0, display.width(), display.height(), EPD_WHITE);
 
   // 1. Format the Time (12-Hour HH:MM format)
@@ -162,7 +235,6 @@ void updateDisplay(struct tm *timeinfo) {
   }
 
   char timeStr[10];
-  // Using %d instead of %02d for the hour so "01:00" becomes "1:00" natively
   sprintf(timeStr, "%d:%02d", displayHour, timeinfo->tm_min);
 
   // 2. Format the Date (Day Mon Date)
@@ -173,20 +245,62 @@ void updateDisplay(struct tm *timeinfo) {
   Serial.printf("Drawing Screen -> %s | %s\n", timeStr, dateStr);
 
   // --- Draw Text ---
-  // Note: Adafruit GFX prints custom fonts from their baseline (bottom-left)
-  // not top-left like default fonts. So the Y coord must be > 0.
-
-  // Draw Time
-  display.setFont(&FreeSansBold18pt7b);
   display.setTextColor(EPD_BLACK);
-  // Center roughly horizontally and position in upper half
-  display.setCursor(65, 55);
-  display.print(timeStr);
 
-  // Draw Date
-  display.setFont(&FreeSans9pt7b);
-  display.setCursor(65, 95);
-  display.print(dateStr);
+  // Draw Time with much larger font and center it vertically in the top half
+  display.setFont(&FreeSansBold24pt7b);
+  printCentered(timeStr, 50);
+
+  // Draw Date with larger font and center it below
+  display.setFont(&FreeSans12pt7b);
+  printCentered(dateStr, 85);
+
+  // --- Draw Weather if Valid ---
+  if (currentWeather.valid) {
+    // Determine the icon to draw
+    const unsigned char *iconPtr = icon_cloudy; // Default
+    if (currentWeather.iconCode.indexOf("01") >= 0) {
+      iconPtr = icon_sunny;
+    } else if (currentWeather.iconCode.indexOf("02") >= 0 ||
+               currentWeather.iconCode.indexOf("03") >= 0 ||
+               currentWeather.iconCode.indexOf("04") >= 0 ||
+               currentWeather.iconCode.indexOf("50") >= 0) {
+      iconPtr = icon_cloudy;
+    } else if (currentWeather.iconCode.indexOf("09") >= 0 ||
+               currentWeather.iconCode.indexOf("10") >= 0) {
+      iconPtr = icon_rain;
+    } else if (currentWeather.iconCode.indexOf("11") >= 0) {
+      iconPtr = icon_thunder;
+    } else if (currentWeather.iconCode.indexOf("13") >= 0) {
+      iconPtr = icon_snow;
+    }
+
+    // Format temperature
+    char tempStr[10];
+    sprintf(tempStr, "%.0f F", currentWeather.temp);
+
+    // Draw in the bottom row
+    display.setFont(&FreeSans12pt7b);
+
+    // Get bounds for temp string so we can align it with the icon neatly
+    // side-by-side
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds(tempStr, 0, 115, &x1, &y1, &w, &h);
+
+    // Total width of icon (32px) + pad (5px) + text (w). Center that whole
+    // block.
+    int16_t totalBlockWidth = 32 + 5 + w;
+    int16_t startX = (display.width() - totalBlockWidth) / 2;
+
+    // Draw the 32x32 icon, offsetting Y so it aligns roughly vertically with
+    // the 12pt text baseline (115)
+    display.drawBitmap(startX, 115 - 28, iconPtr, 32, 32, EPD_BLACK);
+
+    // Draw Temperature
+    display.setCursor(startX + 32 + 5, 115);
+    display.print(tempStr);
+  }
 
   // --- Execute Screen Update ---
   // Partial refresh: Setting this to `true` on supported drivers uses less
