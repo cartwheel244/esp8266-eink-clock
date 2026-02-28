@@ -34,9 +34,9 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 #define EPD_BUSY                                                               \
   -1 // Can set to -1 on FeatherWings since we don't always use it
 
-// The 2.9" Grayscale FeatherWing (Product 4777) uses the IL0373 chipset
-ThinkInk_290_Grayscale4_T5 display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
-                                   EPD_BUSY);
+// The 2.9" Grayscale FeatherWing (Product 4777) uses the SSD1680 chipset
+ThinkInk_290_Grayscale4_EAAMFGN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS,
+                                        EPD_BUSY);
 
 // Globals
 int lastMinute = -1;
