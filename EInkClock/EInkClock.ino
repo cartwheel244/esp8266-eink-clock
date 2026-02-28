@@ -219,7 +219,7 @@ void printCentered(const char *text, int16_t y) {
   int16_t x1, y1;
   uint16_t w, h;
   display.getTextBounds(text, 0, y, &x1, &y1, &w, &h);
-  int16_t xCenter = (display.width() - w) / 2;
+  int16_t xCenter = (display.width() - w) / 2 - x1;
   display.setCursor(xCenter, y);
   display.print(text);
 }
@@ -279,31 +279,54 @@ void updateDisplay(struct tm *timeinfo) {
       iconPtr = icon_snow;
     }
 
-    // Format temperature
-    char tempStr[10];
-    sprintf(tempStr, "%.0f F", currentWeather.temp);
+    // Format temperature just as a number
+    char tempValStr[10];
+    sprintf(tempValStr, "%.0f", currentWeather.temp);
 
-    // Draw in the bottom row
     display.setFont(&FreeSans12pt7b);
 
-    // Get bounds for temp string so we can align it with the icon neatly
-    // side-by-side
+    // 1. Measure the number portion
     int16_t x1, y1;
-    uint16_t w, h;
-    display.getTextBounds(tempStr, 0, 115, &x1, &y1, &w, &h);
+    uint16_t w1, h1;
+    display.getTextBounds(tempValStr, 0, 115, &x1, &y1, &w1, &h1);
 
-    // Total width of icon (32px) + pad (5px) + text (w). Center that whole
-    // block.
-    int16_t totalBlockWidth = 32 + 5 + w;
+    // 2. Measure the "F" portion
+    int16_t fx1, fy1;
+    uint16_t fw, fh;
+    display.getTextBounds("F", 0, 115, &fx1, &fy1, &fw, &fh);
+
+    // 3. Layout Dimensions
+    int iconWidth = 32;
+    int iconGap = 8;
+    int degreeGap = 12; // Gap for the circle
+    int textTotalWidth = w1 + degreeGap + fw;
+    int totalBlockWidth = iconWidth + iconGap + textTotalWidth;
+
     int16_t startX = (display.width() - totalBlockWidth) / 2;
 
-    // Draw the 32x32 icon, offsetting Y so it aligns roughly vertically with
-    // the 12pt text baseline (115)
-    display.drawBitmap(startX, 115 - 28, iconPtr, 32, 32, EPD_BLACK);
+    // Vertically center the 32px icon perfectly against the numeric text height
+    // Text top = y1, Text bottom = y1 + h1, Text center = y1 + h1/2
+    int16_t iconY = y1 + (h1 / 2) - 16;
+    display.drawBitmap(startX, iconY, iconPtr, 32, 32, EPD_BLACK);
 
-    // Draw Temperature
-    display.setCursor(startX + 32 + 5, 115);
-    display.print(tempStr);
+    // Calculate accurate X placement accounting for FreeSans padding (x1)
+    int16_t textX = startX + iconWidth + iconGap - x1;
+    display.setCursor(textX, 115);
+    display.print(tempValStr);
+
+    // Draw Degree Symbol (Small Circle) between the number and 'F'
+    // Right edge of number = startX + iconWidth + iconGap + w1
+    int16_t rightEdge = startX + iconWidth + iconGap + w1;
+    int16_t degX = rightEdge + (degreeGap / 2);
+    int16_t degY = y1 + 4; // Top of the text + 4 px
+    display.drawCircle(degX, degY, 3, EPD_BLACK);
+    display.drawCircle(degX, degY, 2,
+                       EPD_BLACK); // Inner circle to make it bold
+
+    // Draw F taking font padding into account
+    int16_t fX = rightEdge + degreeGap - fx1;
+    display.setCursor(fX, 115);
+    display.print("F");
   }
 
   // --- Execute Screen Update ---
